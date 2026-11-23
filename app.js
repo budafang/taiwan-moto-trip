@@ -1,4 +1,22 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  onSnapshot,
+  setDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
 const STORAGE_KEY = "taiwan_moto_trip_shu_v1";
+const DEFAULT_TRIP_ID = "shu-moto-5d4n";
 
 const DEFAULT_TRIP = [
   {
@@ -374,6 +392,37 @@ const DEFAULT_TRIP = [
 
 let tripData = loadTripData();
 let currentDay = 1;
+let currentUser = null;
+let db = null;
+let auth = null;
+let unsubscribeTrip = null;
+let currentTripId = getTripIdFromUrl();
+
+const firebaseEnabled = Boolean(
+  firebaseConfig &&
+  firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== "YOUR_API_KEY" &&
+  firebaseConfig.projectId &&
+  firebaseConfig.projectId !== "YOUR_PROJECT_ID"
+);
+
+function getTripIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const id = (params.get("trip") || "").trim();
+  return id || DEFAULT_TRIP_ID;
+}
+
+function canEdit() {
+  // 若尚未填入 firebaseConfig，允許本地編輯；一旦啟用 Firebase，必須登入 Google 才能編輯
+  if (!firebaseEnabled) return true;
+  return Boolean(currentUser);
+}
+
+function requireEditPermission() {
+  if (canEdit()) return true;
+  showToast("🔒 請先登入 Google 帳號才能編輯行程");
+  return false;
+}
 
 function loadTripData() {
   try {
@@ -398,6 +447,7 @@ function renumberDays() {
 }
 
 function addDay() {
+  if (!requireEditPermission()) return;
   const nextNum = tripData.length + 1;
   tripData.push({
     day: nextNum,
@@ -427,6 +477,7 @@ function addDay() {
 }
 
 function deleteDay(dayNum) {
+  if (!requireEditPermission()) return;
   if (tripData.length <= 1) {
     showToast("至少需保留 1 天行程");
     return;
@@ -447,8 +498,31 @@ function deleteDay(dayNum) {
   showToast(`已刪除 ${target.label}，並重新編排天數`);
 }
 
-function saveTripData() {
+async function saveTripData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tripData));
+
+  if (!firebaseEnabled || !db || !currentUser) return;
+
+  const syncBadge = document.getElementById("syncBadge");
+  syncBadge.textContent = "⏳ 同步中...";
+  try {
+    await setDoc(
+      doc(db, "trips", currentTripId),
+      {
+        days: tripData,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.displayName || currentUser.email || "Google 使用者",
+        updatedByEmail: currentUser.email || ""
+      },
+      { merge: true }
+    );
+    syncBadge.textContent = "☁️ Firestore 已同步";
+    syncBadge.classList.remove("local");
+  } catch (err) {
+    console.error("寫入 Firestore 失敗：", err);
+    syncBadge.textContent = "⚠️ 同步失敗";
+    showToast("雲端儲存失敗，請確認 Firestore 權限或網路連線");
+  }
 }
 
 function formatMoney(num) {
@@ -595,6 +669,7 @@ function renderHero(dayObj) {
   `;
 
   document.getElementById("openEditDayBtn").addEventListener("click", () => {
+    if (!requireEditPermission()) return;
     const form = document.getElementById("editDayForm");
     document.getElementById("dayRouteShortInput").value = dayObj.routeShort || "";
     document.getElementById("dayDistanceInput").value = dayObj.distanceKm || 0;
@@ -644,12 +719,17 @@ function renderSpots(dayObj) {
     `;
 
     li.querySelector(".spot-check").addEventListener("change", (e) => {
+      if (!requireEditPermission()) {
+        e.target.checked = spot.done;
+        return;
+      }
       spot.done = e.target.checked;
       saveTripData();
       renderAll();
     });
 
     li.querySelector(".icon-delete").addEventListener("click", () => {
+      if (!requireEditPermission()) return;
       dayObj.spots = dayObj.spots.filter((s) => s.id !== spot.id);
       saveTripData();
       renderAll();
@@ -736,6 +816,7 @@ function renderExpenses(dayObj) {
     `;
 
     li.querySelector(".icon-delete").addEventListener("click", () => {
+      if (!requireEditPermission()) return;
       dayObj.expenses = dayObj.expenses.filter((ex) => ex.id !== item.id);
       saveTripData();
       renderAll();
@@ -783,6 +864,7 @@ function setupEvents() {
   });
   editDayForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!requireEditPermission()) return;
     const dayObj = tripData.find((d) => d.day === currentDay);
     if (!dayObj) return;
     dayObj.routeShort = document.getElementById("dayRouteShortInput").value.trim();
@@ -802,6 +884,7 @@ function setupEvents() {
   const toggleAddSpotBtn = document.getElementById("toggleAddSpotBtn");
   const addSpotForm = document.getElementById("addSpotForm");
   toggleAddSpotBtn.addEventListener("click", () => {
+    if (!requireEditPermission()) return;
     addSpotForm.classList.toggle("hidden");
     if (!addSpotForm.classList.contains("hidden")) {
       document.getElementById("spotTime").focus();
@@ -811,6 +894,7 @@ function setupEvents() {
   // 新增景點送出
   addSpotForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!requireEditPermission()) return;
     const dayObj = tripData.find((d) => d.day === currentDay);
     const time = document.getElementById("spotTime").value.trim();
     const name = document.getElementById("spotName").value.trim();
@@ -842,6 +926,7 @@ function setupEvents() {
   const cancelStayEdit = document.getElementById("cancelStayEdit");
 
   editStayBtn.addEventListener("click", () => {
+    if (!requireEditPermission()) return;
     const dayObj = tripData.find((d) => d.day === currentDay);
     document.getElementById("stayNameInput").value = dayObj.stay.name;
     document.getElementById("stayLocationInput").value = dayObj.stay.location;
@@ -860,6 +945,7 @@ function setupEvents() {
 
   editStayForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!requireEditPermission()) return;
     const dayObj = tripData.find((d) => d.day === currentDay);
     dayObj.stay.name = document.getElementById("stayNameInput").value.trim();
     dayObj.stay.location = document.getElementById("stayLocationInput").value.trim();
@@ -878,6 +964,7 @@ function setupEvents() {
   const addExpenseForm = document.getElementById("addExpenseForm");
   addExpenseForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!requireEditPermission()) return;
     const dayObj = tripData.find((d) => d.day === currentDay);
     const category = document.getElementById("expenseCategory").value;
     const title = document.getElementById("expenseTitle").value.trim();
@@ -912,6 +999,7 @@ function setupEvents() {
 
   // 重置預設
   document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!requireEditPermission()) return;
     if (confirm("確定要將所有景點、住宿與花費重置為預設的 5 天 4 夜環台行程嗎？")) {
       tripData = structuredClone(DEFAULT_TRIP);
       currentDay = 1;
@@ -921,7 +1009,169 @@ function setupEvents() {
       showToast("已重置為預設行程");
     }
   });
+
+  // Google 登入與登出
+  const handleLogin = async () => {
+    if (!firebaseEnabled || !auth) {
+      showToast("請先在 firebase-config.js 填入 Firebase 設定");
+      return;
+    }
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      showToast("Google 帳號登入成功，已解鎖共編權限！");
+    } catch (err) {
+      console.error("Google 登入失敗：", err);
+      showToast(`登入失敗：${err.code || err.message}`);
+    }
+  };
+
+  document.getElementById("loginBtn").addEventListener("click", handleLogin);
+  document.getElementById("bannerLoginBtn").addEventListener("click", handleLogin);
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    if (!auth) return;
+    await signOut(auth);
+    closeForms();
+    showToast("已登出 Google 帳號");
+  });
+
+  // 複製共編分享連結
+  document.getElementById("copyShareBtn").addEventListener("click", async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?trip=${encodeURIComponent(currentTripId)}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast("已複製共編連結，快分享給同學吧！");
+    } catch {
+      prompt("請複製以下共編連結分享給同學：", shareUrl);
+    }
+  });
+
+  // 建立全新共編行程
+  document.getElementById("newTripBtn").addEventListener("click", () => {
+    if (!requireEditPermission()) return;
+    const newId = `trip-${Math.random().toString(36).slice(2, 8)}`;
+    const url = new URL(window.location.href);
+    url.searchParams.set("trip", newId);
+    window.history.pushState({}, "", url.toString());
+    currentTripId = newId;
+    tripData = structuredClone(DEFAULT_TRIP);
+    currentDay = 1;
+    subscribeToTrip(currentTripId);
+    saveTripData();
+    renderAll();
+    showToast(`已建立新共編行程：${newId}`);
+  });
+}
+
+function updateAuthUI() {
+  const loggedOutView = document.getElementById("loggedOutView");
+  const loggedInView = document.getElementById("loggedInView");
+  const readonlyBanner = document.getElementById("readonlyBanner");
+  const readonlyTitle = document.getElementById("readonlyTitle");
+  const readonlyDesc = document.getElementById("readonlyDesc");
+  const bannerLoginBtn = document.getElementById("bannerLoginBtn");
+  const syncBadge = document.getElementById("syncBadge");
+  const tripIdTag = document.getElementById("tripIdTag");
+
+  tripIdTag.textContent = `#${currentTripId}`;
+
+  if (!firebaseEnabled) {
+    syncBadge.textContent = "💾 本地模式";
+    syncBadge.classList.add("local");
+    loggedOutView.classList.add("hidden");
+    loggedInView.classList.add("hidden");
+    readonlyBanner.classList.remove("hidden");
+    readonlyTitle.textContent = "⚙️ 尚未填入 Firebase 設定（目前為本機暫存模式）";
+    readonlyDesc.textContent = "請將 Firebase Console 的 firebaseConfig 貼到 firebase-config.js，即可啟用 Google 登入與 Firestore 多人共編。";
+    bannerLoginBtn.classList.add("hidden");
+    document.body.classList.remove("readonly");
+    return;
+  }
+
+  bannerLoginBtn.classList.remove("hidden");
+
+  if (currentUser) {
+    loggedOutView.classList.add("hidden");
+    loggedInView.classList.remove("hidden");
+    document.getElementById("userName").textContent = currentUser.displayName || "Google 使用者";
+    document.getElementById("userEmail").textContent = currentUser.email || "";
+    const avatar = document.getElementById("userAvatar");
+    avatar.src = currentUser.photoURL || "https://www.gravatar.com/avatar/?d=mp";
+    readonlyBanner.classList.add("hidden");
+    document.body.classList.remove("readonly");
+  } else {
+    loggedOutView.classList.remove("hidden");
+    loggedInView.classList.add("hidden");
+    readonlyBanner.classList.remove("hidden");
+    readonlyTitle.textContent = "🔒 目前為唯讀檢視模式";
+    readonlyDesc.textContent = "請登入 Google 帳號後，即可與同學一起新增、修改行程、住宿與花費。";
+    document.body.classList.add("readonly");
+  }
+}
+
+function subscribeToTrip(tripId) {
+  if (unsubscribeTrip) {
+    unsubscribeTrip();
+    unsubscribeTrip = null;
+  }
+  if (!db) return;
+
+  const syncBadge = document.getElementById("syncBadge");
+  const lastUpdatedText = document.getElementById("lastUpdatedText");
+  syncBadge.textContent = "⏳ 載入雲端行程...";
+
+  unsubscribeTrip = onSnapshot(
+    doc(db, "trips", tripId),
+    (snap) => {
+      syncBadge.textContent = "☁️ Firestore 已連線";
+      syncBadge.classList.remove("local");
+
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.days) && data.days.length >= 1) {
+          tripData = data.days;
+          if (currentDay > tripData.length) {
+            currentDay = tripData.length;
+          }
+          renderAll();
+        }
+        if (data.updatedBy) {
+          const timeStr = data.updatedAt?.toDate
+            ? data.updatedAt.toDate().toLocaleString("zh-TW", { hour12: false })
+            : "剛剛";
+          lastUpdatedText.textContent = `最後編輯：${data.updatedBy}（${timeStr}）`;
+        }
+      } else {
+        lastUpdatedText.textContent = "尚未儲存雲端版本，登入後修改即自動建立";
+      }
+    },
+    (err) => {
+      console.error("Firestore 監聽失敗：", err);
+      syncBadge.textContent = "⚠️ 雲端連線異常";
+      syncBadge.classList.add("local");
+    }
+  );
+}
+
+function initFirebase() {
+  if (!firebaseEnabled) {
+    updateAuthUI();
+    return;
+  }
+
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    updateAuthUI();
+  });
+
+  subscribeToTrip(currentTripId);
 }
 
 setupEvents();
+initFirebase();
 renderAll();
