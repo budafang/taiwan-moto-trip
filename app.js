@@ -380,7 +380,7 @@ function loadTripData() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length === 5) {
+      if (Array.isArray(parsed) && parsed.length >= 1) {
         return parsed;
       }
     }
@@ -388,6 +388,63 @@ function loadTripData() {
     console.warn("讀取儲存資料失敗，使用預設行程。", err);
   }
   return structuredClone(DEFAULT_TRIP);
+}
+
+function renumberDays() {
+  tripData.forEach((d, idx) => {
+    d.day = idx + 1;
+    d.label = `第${idx + 1}天`;
+  });
+}
+
+function addDay() {
+  const nextNum = tripData.length + 1;
+  tripData.push({
+    day: nextNum,
+    label: `第${nextNum}天`,
+    routeShort: "自訂路線",
+    routeTitle: `第${nextNum}天・自訂環台行程`,
+    subtitle: "點擊下方「編輯路線資訊」設定今日出發地、目的地與里程",
+    distanceKm: 120,
+    rideHours: "約 3.5 小時",
+    roadTip: "騎車請注意安全，適時休息並留意沿途加油站位置。",
+    spots: [],
+    stay: {
+      name: "自訂住宿點",
+      location: "請輸入住宿區域或地址",
+      price: 1000,
+      checkin: "15:00 / 11:00",
+      note: "建議事先確認是否提供機車停放空間。",
+      isHome: false
+    },
+    expenses: []
+  });
+  currentDay = nextNum;
+  saveTripData();
+  closeForms();
+  renderAll();
+  showToast(`已新增第${nextNum}天行程`);
+}
+
+function deleteDay(dayNum) {
+  if (tripData.length <= 1) {
+    showToast("至少需保留 1 天行程");
+    return;
+  }
+  const target = tripData.find((d) => d.day === dayNum);
+  if (!target) return;
+  if (!confirm(`確定要刪除「${target.label}（${target.routeShort}）」嗎？該天的景點、住宿與花費記錄將會一併移除。`)) {
+    return;
+  }
+  tripData = tripData.filter((d) => d.day !== dayNum);
+  renumberDays();
+  if (currentDay > tripData.length) {
+    currentDay = tripData.length;
+  }
+  saveTripData();
+  closeForms();
+  renderAll();
+  showToast(`已刪除 ${target.label}，並重新編排天數`);
 }
 
 function saveTripData() {
@@ -423,17 +480,26 @@ function renderSidebar() {
   const dayNav = document.getElementById("dayNav");
   dayNav.innerHTML = "";
 
+  const daysCount = tripData.length;
+  const nightsCount = Math.max(0, daysCount - 1);
+  document.getElementById("tripTitle").textContent = `台灣環島 ${daysCount}天${nightsCount}夜`;
+  document.getElementById("grandTotalLabel").textContent = `${daysCount}天總花費`;
+
   let grandTotal = 0;
   let totalKm = 0;
   let doneSpots = 0;
   let totalSpots = 0;
+  const canDelete = daysCount > 1;
 
   tripData.forEach((d) => {
     const dayCost = getDayTotalCost(d);
     grandTotal += dayCost;
-    totalKm += d.distanceKm;
+    totalKm += Number(d.distanceKm || 0);
     totalSpots += d.spots.length;
     doneSpots += d.spots.filter((s) => s.done).length;
+
+    const itemWrap = document.createElement("div");
+    itemWrap.className = `day-nav-item${canDelete ? " has-delete" : ""}`;
 
     const btn = document.createElement("button");
     btn.type = "button";
@@ -441,10 +507,10 @@ function renderSidebar() {
     btn.setAttribute("aria-current", d.day === currentDay ? "page" : "false");
     btn.innerHTML = `
       <div class="day-btn-top">
-        <span class="day-label">${d.label}</span>
+        <span class="day-label">${escapeHtml(d.label)}</span>
         <span class="day-km mono">${d.distanceKm} km</span>
       </div>
-      <div class="day-route-mini">${d.routeShort}</div>
+      <div class="day-route-mini">${escapeHtml(d.routeShort)}</div>
       <div class="day-meta-mini">
         <span>景點 ${d.spots.filter((s) => s.done).length}/${d.spots.length}</span>
         <span class="mono">${formatMoney(dayCost)}</span>
@@ -458,7 +524,23 @@ function renderSidebar() {
         document.getElementById("mainContent").scrollIntoView({ behavior: "smooth" });
       }
     });
-    dayNav.appendChild(btn);
+    itemWrap.appendChild(btn);
+
+    if (canDelete) {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "day-delete-btn";
+      delBtn.title = `刪除 ${d.label}`;
+      delBtn.setAttribute("aria-label", `刪除 ${d.label}`);
+      delBtn.textContent = "✕";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteDay(d.day);
+      });
+      itemWrap.appendChild(delBtn);
+    }
+
+    dayNav.appendChild(itemWrap);
   });
 
   // 更新總覽數據
@@ -480,12 +562,13 @@ function renderSidebar() {
 function renderHero(dayObj) {
   const hero = document.getElementById("dayHero");
   const dayCost = getDayTotalCost(dayObj);
+  const canDelete = tripData.length > 1;
   hero.innerHTML = `
     <div class="hero-top">
       <div>
-        <div class="hero-day-tag">🛵 ${dayObj.label} ・ ${dayObj.routeShort}</div>
-        <h2 class="hero-title">${dayObj.routeTitle}</h2>
-        <p class="hero-subtitle">${dayObj.subtitle}</p>
+        <div class="hero-day-tag">🛵 ${escapeHtml(dayObj.label)} ・ ${escapeHtml(dayObj.routeShort)}</div>
+        <h2 class="hero-title">${escapeHtml(dayObj.routeTitle)}</h2>
+        <p class="hero-subtitle">${escapeHtml(dayObj.subtitle)}</p>
       </div>
       <div class="hero-metrics">
         <div class="hero-metric">
@@ -494,7 +577,7 @@ function renderHero(dayObj) {
         </div>
         <div class="hero-metric">
           <span>騎乘時間</span>
-          <strong>${dayObj.rideHours}</strong>
+          <strong>${escapeHtml(dayObj.rideHours)}</strong>
         </div>
         <div class="hero-metric">
           <span>當日花費</span>
@@ -503,9 +586,30 @@ function renderHero(dayObj) {
       </div>
     </div>
     <div class="hero-tip">
-      <strong>💡 騎士路況提醒：</strong>${dayObj.roadTip}
+      <strong>💡 騎士路況提醒：</strong>${escapeHtml(dayObj.roadTip)}
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="hero-btn" id="openEditDayBtn">✏️ 編輯路線資訊</button>
+      ${canDelete ? `<button type="button" class="hero-btn danger" id="heroDeleteDayBtn">🗑️ 刪除這一天</button>` : ""}
     </div>
   `;
+
+  document.getElementById("openEditDayBtn").addEventListener("click", () => {
+    const form = document.getElementById("editDayForm");
+    document.getElementById("dayRouteShortInput").value = dayObj.routeShort || "";
+    document.getElementById("dayDistanceInput").value = dayObj.distanceKm || 0;
+    document.getElementById("dayHoursInput").value = dayObj.rideHours || "";
+    document.getElementById("dayTitleInput").value = dayObj.routeTitle || "";
+    document.getElementById("daySubtitleInput").value = dayObj.subtitle || "";
+    document.getElementById("dayTipInput").value = dayObj.roadTip || "";
+    form.classList.toggle("hidden");
+  });
+
+  if (canDelete) {
+    document.getElementById("heroDeleteDayBtn").addEventListener("click", () => {
+      deleteDay(dayObj.day);
+    });
+  }
 }
 
 function renderSpots(dayObj) {
@@ -654,6 +758,7 @@ function renderAll() {
 function closeForms() {
   document.getElementById("addSpotForm").classList.add("hidden");
   document.getElementById("editStayForm").classList.add("hidden");
+  document.getElementById("editDayForm").classList.add("hidden");
   document.getElementById("stayDisplay").classList.remove("hidden");
 }
 
@@ -668,6 +773,31 @@ function escapeHtml(str) {
 
 // 綁定互動事件
 function setupEvents() {
+  // 新增一天
+  document.getElementById("addDayBtn").addEventListener("click", addDay);
+
+  // 編輯當日路線資訊
+  const editDayForm = document.getElementById("editDayForm");
+  document.getElementById("cancelDayEdit").addEventListener("click", () => {
+    editDayForm.classList.add("hidden");
+  });
+  editDayForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const dayObj = tripData.find((d) => d.day === currentDay);
+    if (!dayObj) return;
+    dayObj.routeShort = document.getElementById("dayRouteShortInput").value.trim();
+    dayObj.distanceKm = Number(document.getElementById("dayDistanceInput").value) || 0;
+    dayObj.rideHours = document.getElementById("dayHoursInput").value.trim();
+    dayObj.routeTitle = document.getElementById("dayTitleInput").value.trim();
+    dayObj.subtitle = document.getElementById("daySubtitleInput").value.trim();
+    dayObj.roadTip = document.getElementById("dayTipInput").value.trim();
+
+    saveTripData();
+    editDayForm.classList.add("hidden");
+    renderAll();
+    showToast(`已更新 ${dayObj.label} 路線資訊`);
+  });
+
   // 展開/收合新增景點表單
   const toggleAddSpotBtn = document.getElementById("toggleAddSpotBtn");
   const addSpotForm = document.getElementById("addSpotForm");
@@ -784,6 +914,7 @@ function setupEvents() {
   document.getElementById("resetBtn").addEventListener("click", () => {
     if (confirm("確定要將所有景點、住宿與花費重置為預設的 5 天 4 夜環台行程嗎？")) {
       tripData = structuredClone(DEFAULT_TRIP);
+      currentDay = 1;
       saveTripData();
       closeForms();
       renderAll();

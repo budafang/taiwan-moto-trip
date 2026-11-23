@@ -15,13 +15,15 @@
     <aside class="sidebar" aria-label="環台天數選單">
       <div class="brand-header">
         <div class="brand-badge">🛵 逆時針機車環台</div>
-        <h1>台灣環島 5天4夜</h1>
+        <h1 id="tripTitle">台灣環島 5天4夜</h1>
         <p class="brand-sub">起訖點：台北世新大學（文山區）</p>
       </div>
 
       <nav class="day-nav" id="dayNav" aria-label="每日行程選擇">
-        <!-- 由 app.js 動態渲染 第1天～第5天 -->
+        <!-- 由 app.js 動態渲染 第1天～第N天 -->
       </nav>
+
+      <button type="button" class="btn-add-day" id="addDayBtn">+ 新增日期（天數）</button>
 
       <!-- 環島路線迷你 SVG 與總覽統計 -->
       <div class="sidebar-summary">
@@ -56,7 +58,7 @@
 
         <div class="stat-grid">
           <div class="stat-box">
-            <span class="stat-label">五天總花費</span>
+            <span class="stat-label" id="grandTotalLabel">總花費</span>
             <strong class="stat-value mono" id="grandTotalCost">NT$ 0</strong>
           </div>
           <div class="stat-box">
@@ -82,6 +84,41 @@
       <header class="day-hero" id="dayHero">
         <!-- 由 app.js 動態渲染 -->
       </header>
+
+      <!-- 編輯當日路線資訊表單 -->
+      <form class="card inline-form hidden" id="editDayForm">
+        <div class="card-header" style="margin-bottom: 10px;">
+          <div>
+            <h2>✏️ 編輯當日路線與里程資訊</h2>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="field-label">簡短路線（側邊欄顯示）
+            <input type="text" id="dayRouteShortInput" placeholder="如：台北 → 宜蘭" required />
+          </label>
+          <label class="field-label">預估里程 (km)
+            <input type="number" id="dayDistanceInput" min="0" step="5" required />
+          </label>
+          <label class="field-label">騎乘時間
+            <input type="text" id="dayHoursInput" placeholder="如：約 4.5 小時" />
+          </label>
+        </div>
+        <div class="form-col">
+          <label>當日標題
+            <input type="text" id="dayTitleInput" required />
+          </label>
+          <label>副標題 / 路線說明
+            <input type="text" id="daySubtitleInput" />
+          </label>
+          <label>騎士路況提醒
+            <input type="text" id="dayTipInput" />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancelDayEdit">取消</button>
+          <button type="submit" class="btn-primary">儲存當日資訊</button>
+        </div>
+      </form>
 
       <!-- 三大核心區塊 -->
       <div class="content-grid">

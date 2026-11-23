@@ -94,11 +94,17 @@ body {
   margin-top: 4px;
 }
 
-/* 日期按鈕清單（第1天～第5天） */
+/* 日期按鈕清單（第1天～第N天） */
 .day-nav {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.day-nav-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
 }
 
 .day-btn {
@@ -115,6 +121,60 @@ body {
   flex-direction: column;
   gap: 4px;
   font-family: inherit;
+}
+
+.day-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.18s ease;
+}
+
+.day-nav-item:hover .day-delete-btn,
+.day-nav-item:focus-within .day-delete-btn {
+  opacity: 1;
+}
+
+.day-delete-btn:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.day-nav-item.has-delete .day-btn-top {
+  padding-right: 26px;
+}
+
+.btn-add-day {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(94, 234, 212, 0.45);
+  background: rgba(15, 118, 110, 0.16);
+  color: #5eead4;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-day:hover {
+  background: rgba(15, 118, 110, 0.35);
+  border-color: #5eead4;
+  color: #ffffff;
 }
 
 .day-btn:hover {
@@ -416,6 +476,44 @@ body {
   border-radius: 6px;
   font-size: 13px;
   color: #e2e8f0;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.hero-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.hero-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.hero-btn.danger:hover {
+  background: rgba(220, 38, 38, 0.85);
+  border-color: #f87171;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* 雙欄內容區：景點 vs 住宿+花費 */
@@ -969,9 +1067,17 @@ body {
     padding-bottom: 4px;
   }
 
-  .day-btn {
-    min-width: 155px;
+  .day-nav-item {
+    min-width: 165px;
     flex-shrink: 0;
+  }
+
+  .day-delete-btn {
+    opacity: 1;
+  }
+
+  .btn-add-day {
+    padding: 8px 12px;
   }
 
   .mini-map-wrap {
