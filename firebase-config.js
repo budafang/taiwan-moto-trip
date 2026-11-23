@@ -1,11 +1,9 @@
-// 請到 Firebase Console -> 專案設定 -> 您的應用程式 (Web) 複製 firebaseConfig 貼到下方
-// 貼上並 push 到 GitHub 後，Vercel 會自動重新部署並啟用 Google 登入與 Firestore 共編功能
-
+// Firebase 專案設定（power language / gen-lang-client-0189454197）
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAz0nmZTHkpdVAvHZ4rZZERQQ4Ko3mE8is",
+  authDomain: "gen-lang-client-0189454197.firebaseapp.com",
+  projectId: "gen-lang-client-0189454197",
+  storageBucket: "gen-lang-client-0189454197.firebasestorage.app",
+  messagingSenderId: "418187883232",
+  appId: "1:418187883232:web:e6a580fee3d386bbb65685"
 };
