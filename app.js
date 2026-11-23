@@ -17,6 +17,10 @@ import { firebaseConfig } from "./firebase-config.js";
 
 const STORAGE_KEY = "taiwan_moto_trip_shu_v1";
 const DEFAULT_TRIP_ID = "shu-moto-5d4n";
+const ALLOWED_EDITORS = [
+  "budafang@gmail.com",
+  "budafang@mail.shu.edu.tw"
+];
 
 const DEFAULT_TRIP = [
   {
@@ -412,15 +416,24 @@ function getTripIdFromUrl() {
   return id || DEFAULT_TRIP_ID;
 }
 
+function isAllowedEditor(user) {
+  if (!user || !user.email) return false;
+  return ALLOWED_EDITORS.includes(user.email.toLowerCase());
+}
+
 function canEdit() {
-  // 若尚未填入 firebaseConfig，允許本地編輯；一旦啟用 Firebase，必須登入 Google 才能編輯
+  // 若尚未填入 firebaseConfig，允許本地編輯；一旦啟用 Firebase，必須登入授權的 Google 帳號才能編輯
   if (!firebaseEnabled) return true;
-  return Boolean(currentUser);
+  return isAllowedEditor(currentUser);
 }
 
 function requireEditPermission() {
   if (canEdit()) return true;
-  showToast("🔒 請先登入 Google 帳號才能編輯行程");
+  if (currentUser) {
+    showToast(`🔒 帳號 ${currentUser.email} 沒有編輯權限，僅限授權帳號修訂`);
+  } else {
+    showToast("🔒 請先登入授權的 Google 帳號才能編輯行程");
+  }
   return false;
 }
 
@@ -1098,8 +1111,17 @@ function updateAuthUI() {
     document.getElementById("userEmail").textContent = currentUser.email || "";
     const avatar = document.getElementById("userAvatar");
     avatar.src = currentUser.photoURL || "https://www.gravatar.com/avatar/?d=mp";
-    readonlyBanner.classList.add("hidden");
-    document.body.classList.remove("readonly");
+
+    if (isAllowedEditor(currentUser)) {
+      readonlyBanner.classList.add("hidden");
+      document.body.classList.remove("readonly");
+    } else {
+      readonlyBanner.classList.remove("hidden");
+      readonlyTitle.textContent = "🔒 此帳號僅供檢視（無編輯權限）";
+      readonlyDesc.textContent = `目前登入為 ${currentUser.email}，僅限授權帳號可修訂行程。`;
+      bannerLoginBtn.classList.add("hidden");
+      document.body.classList.add("readonly");
+    }
   } else {
     loggedOutView.classList.remove("hidden");
     loggedInView.classList.add("hidden");

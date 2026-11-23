@@ -2,10 +2,15 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 行程共編文件：任何人可檢視，必須登入 Google 帳號才能新增/修改/刪除
+    // 行程共編文件：任何人可檢視，僅限授權的 Google 帳號可以新增/修改/刪除
     match /trips/{tripId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null;
+      allow create, update, delete: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "budafang@gmail.com",
+          "budafang@mail.shu.edu.tw"
+        ];
     }
   }
 }
