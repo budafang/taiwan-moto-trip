@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>機車環台 5天4夜｜台北世新大學出發</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 左側：日期導覽與環台總覽 -->
+    <aside class="sidebar" aria-label="環台天數選單">
+      <div class="brand-header">
+        <div class="brand-badge">🛵 逆時針機車環台</div>
+        <h1>台灣環島 5天4夜</h1>
+        <p class="brand-sub">起訖點：台北世新大學（文山區）</p>
+      </div>
+
+      <nav class="day-nav" id="dayNav" aria-label="每日行程選擇">
+        <!-- 由 app.js 動態渲染 第1天～第5天 -->
+      </nav>
+
+      <!-- 環島路線迷你 SVG 與總覽統計 -->
+      <div class="sidebar-summary">
+        <div class="summary-header">
+          <span>環台總覽</span>
+          <span class="mono" id="totalDistance">1,040 km</span>
+        </div>
+
+        <div class="mini-map-wrap" aria-hidden="true">
+          <svg viewBox="0 0 180 250" class="taiwan-svg" id="taiwanMap">
+            <!-- 台灣輪廓簡化造型 -->
+            <path class="island-shape" d="M108,18 C122,22 132,34 136,52 C140,70 135,96 126,126 C118,152 108,182 96,210 C90,224 84,234 78,232 C72,230 68,216 64,198 C56,174 44,148 38,120 C33,96 42,72 56,52 C70,32 90,14 108,18 Z" />
+            <!-- 五天逆時針路線段 -->
+            <path class="route-seg" data-day="1" d="M106,24 C86,32 64,56 50,86 C44,102 44,122 50,142" />
+            <path class="route-seg" data-day="2" d="M50,142 C56,164 66,192 78,228" />
+            <path class="route-seg" data-day="3" d="M78,228 C92,222 104,196 114,166" />
+            <path class="route-seg" data-day="4" d="M114,166 C124,136 132,102 132,74" />
+            <path class="route-seg" data-day="5" d="M132,74 C132,50 124,30 106,24" />
+            <!-- 節點 -->
+            <circle class="route-node start-node" cx="106" cy="24" r="5" />
+            <circle class="route-node" data-day="1" cx="50" cy="142" r="4" />
+            <circle class="route-node" data-day="2" cx="78" cy="228" r="4" />
+            <circle class="route-node" data-day="3" cx="114" cy="166" r="4" />
+            <circle class="route-node" data-day="4" cx="132" cy="74" r="4" />
+            <text x="114" y="22" class="map-label">世新</text>
+            <text x="16" y="146" class="map-label">嘉義</text>
+            <text x="84" y="242" class="map-label">墾丁</text>
+            <text x="122" y="170" class="map-label">台東</text>
+            <text x="139" y="77" class="map-label">花蓮</text>
+          </svg>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-box">
+            <span class="stat-label">五天總花費</span>
+            <strong class="stat-value mono" id="grandTotalCost">NT$ 0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">景點打卡進度</span>
+            <strong class="stat-value mono" id="totalProgress">0 / 0</strong>
+          </div>
+        </div>
+
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button type="button" class="btn-ghost" id="exportBtn">匯出行程</button>
+          <button type="button" class="btn-ghost danger" id="resetBtn">重置預設</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右側：當日詳細行程、景點、住宿點、花費記錄 -->
+    <main class="main-content" id="mainContent">
+      <!-- 當日總覽標頭 -->
+      <header class="day-hero" id="dayHero">
+        <!-- 由 app.js 動態渲染 -->
+      </header>
+
+      <!-- 三大核心區塊 -->
+      <div class="content-grid">
+        <!-- 區塊 1：行程與景點 -->
+        <section class="card spots-card" aria-labelledby="spotsHeading">
+          <div class="card-header">
+            <div>
+              <h2 id="spotsHeading">📍 當日行程與景點</h2>
+              <p class="card-sub">勾選已完成打卡的景點，或點擊地圖快速開啟導航</p>
+            </div>
+            <button type="button" class="btn-primary-sm" id="toggleAddSpotBtn">+ 新增景點</button>
+          </div>
+
+          <form class="inline-form hidden" id="addSpotForm">
+            <div class="form-row">
+              <input type="text" id="spotTime" placeholder="時間 (如 14:30)" required />
+              <input type="text" id="spotName" placeholder="景點名稱" required />
+              <select id="spotCategory">
+                <option value="景點">景點</option>
+                <option value="美食">美食</option>
+                <option value="出發/抵達">出發/抵達</option>
+                <option value="休息/加油">休息/加油</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <input type="text" id="spotNote" placeholder="備註或亮點說明（選填）" />
+              <button type="submit" class="btn-primary">加入行程</button>
+            </div>
+          </form>
+
+          <ul class="timeline" id="spotsList">
+            <!-- 動態渲染 -->
+          </ul>
+        </section>
+
+        <!-- 右欄：住宿點 + 花費記錄 -->
+        <div class="right-column">
+          <!-- 區塊 2：住宿點 -->
+          <section class="card stay-card" aria-labelledby="stayHeading">
+            <div class="card-header">
+              <div>
+                <h2 id="stayHeading">🏨 當晚住宿點</h2>
+                <p class="card-sub" id="staySubtitle">機車友善住宿建議</p>
+              </div>
+              <button type="button" class="btn-outline-sm" id="editStayBtn">編輯住宿</button>
+            </div>
+
+            <div id="stayDisplay" class="stay-display">
+              <!-- 動態渲染 -->
+            </div>
+
+            <form class="inline-form hidden" id="editStayForm">
+              <div class="form-col">
+                <label>住宿名稱
+                  <input type="text" id="stayNameInput" required />
+                </label>
+                <label>地點 / 區域
+                  <input type="text" id="stayLocationInput" required />
+                </label>
+                <div class="form-row">
+                  <label>預估房價 (NT$)
+                    <input type="number" id="stayPriceInput" min="0" step="50" required />
+                  </label>
+                  <label>入住 / 退房
+                    <input type="text" id="stayCheckinInput" placeholder="15:00 / 11:00" />
+                  </label>
+                </div>
+                <label>機車停車與備註
+                  <input type="text" id="stayNoteInput" />
+                </label>
+                <div class="form-actions">
+                  <button type="button" class="btn-ghost" id="cancelStayEdit">取消</button>
+                  <button type="submit" class="btn-primary">儲存住宿</button>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <!-- 區塊 3：花費記錄 -->
+          <section class="card expense-card" aria-labelledby="expenseHeading">
+            <div class="card-header">
+              <div>
+                <h2 id="expenseHeading">💰 當日花費記錄</h2>
+                <p class="card-sub">即時記帳，自動加總至五天總預算</p>
+              </div>
+              <div class="day-cost-pill">
+                當日小計 <strong class="mono" id="dayTotalCost">NT$ 0</strong>
+              </div>
+            </div>
+
+            <!-- 分類佔比條 -->
+            <div class="expense-breakdown" id="expenseBreakdown"></div>
+
+            <!-- 新增花費表單 -->
+            <form class="expense-form" id="addExpenseForm">
+              <select id="expenseCategory" aria-label="花費類別">
+                <option value="油資">⛽ 油資</option>
+                <option value="餐飲">🍜 餐飲</option>
+                <option value="住宿">🏨 住宿</option>
+                <option value="門票/雜支">🎟️ 門票/雜支</option>
+              </select>
+              <input type="text" id="expenseTitle" placeholder="項目名稱（如：95無鉛加油）" required />
+              <input type="number" id="expenseAmount" placeholder="金額" min="0" step="10" required />
+              <button type="submit" class="btn-primary">記一筆</button>
+            </form>
+
+            <!-- 花費明細清單 -->
+            <ul class="expense-list" id="expenseList">
+              <!-- 動態渲染 -->
+            </ul>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
